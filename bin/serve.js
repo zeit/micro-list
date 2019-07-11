@@ -81,6 +81,8 @@ const getHelp = () => chalk`
 
       -c, --config                        Specify custom path to \`serve.json\`
 
+      --charset                           override header charset for every http request of html, htm, css file
+
       -n, --no-clipboard                  Do not copy the local address to the clipboard
 	  
       -u, --no-compression                Do not compress files
@@ -171,15 +173,99 @@ const getNetworkAddress = () => {
 	}
 };
 
+const scanContentTypeCharset = (content, ext) => {
+	const defaultCharset = 'utf-8';
+	let charset = [];
+	let matcher = null;
+
+	if (ext === 'html' || ext === 'htm') {
+		matcher = /<meta(?!\s*(?:name|value)\s*=)[^>]*?charset\s*=[\s"']*([^\s"'/>]*)/;
+	} else if (ext === 'css') {
+		matcher = /@charset\s*[\s"']*([^\s"'/>]*)/;
+	}
+	charset = content.match(matcher);
+	charset = charset && charset.length > 1 ? charset[1].toLowerCase() : defaultCharset;
+
+	return charset;
+};
+
+const extractCharset = (extention, fileContent, forcedCharset) => {
+	if (forcedCharset) {
+		return forcedCharset;
+	}
+
+	return scanContentTypeCharset(fileContent, extention);
+};
+
+const realPath = (relativePath) => {
+	const possiblePaths = [
+		path.join(relativePath, 'index.html'),
+		relativePath.endsWith('/') ? relativePath.replace(/\/$/g, '.html') : `${relativePath}.html`
+	].filter((item) => path.basename(item) !== '.html');
+
+	for (let index = 0; index < possiblePaths.length; index++) {
+		const related = possiblePaths[index];
+		const absolutePath = path.join(process.cwd(), related);
+		let exist = false;
+		try {
+			exist = fs.existsSync(absolutePath);
+		} catch (err) {
+			continue;
+		}
+
+		if (exist) {
+			return absolutePath;
+		}
+	}
+
+	return null;
+};
+
 const startEndpoint = (endpoint, config, args, previous) => {
 	const {isTTY} = process.stdout;
 	const clipboard = args['--no-clipboard'] !== true;
 	const compress = args['--no-compression'] !== true;
+	const allowExt = [
+		'css',
+		'html',
+		'htm',
+		'shtml'
+	];
 
 	const server = http.createServer(async (request, response) => {
 		if (compress) {
 			await compressionHandler(request, response);
 		}
+
+		let fullPath = path.resolve() + request.url;
+		let relativePath = request.url;
+		if (path.extname(fullPath) === '') {
+			fullPath = realPath(request.url) ? realPath(request.url) : fullPath;
+			relativePath = path.relative(process.cwd(), fullPath);
+		}
+
+		const extention = fullPath.split(/\#|\?/)[0].split('.').pop();
+
+		let charset = 'utf-8';
+		if (allowExt.indexOf(extention) >= 0) {
+			try {
+				const fileContent = fs.readFileSync(fullPath, 'utf-8');
+				charset = extractCharset(extention, fileContent, config.charset);
+				if (!config.headers) {
+					config.headers = [];
+				}
+
+				config.headers.push({
+					source: relativePath,
+					headers: [{
+						key: 'Content-Type',
+						value: `text/${extention}; charset=${config.charset ? config.charset : charset}`
+					}]
+				});
+			} catch (err) {
+				console.log('');
+			}
+		} // if (allowExt.indexOf(extention) >= 0)
 
 		return handler(request, response, config);
 	});
@@ -348,6 +434,7 @@ const loadConfig = async (cwd, entry, args) => {
 			'--single': Boolean,
 			'--debug': Boolean,
 			'--config': String,
+			'--charset': String,
 			'--no-clipboard': Boolean,
 			'--no-compression': Boolean,
 			'--no-etag': Boolean,
@@ -411,6 +498,10 @@ const loadConfig = async (cwd, entry, args) => {
 
 	if (args['--symlinks']) {
 		config.symlinks = true;
+	}
+
+	if (args['--charset']) {
+		config.charset = args['--charset'];
 	}
 
 	for (const endpoint of args['--listen']) {

@@ -338,7 +338,9 @@ const loadConfig = async (cwd, entry, args) => {
 	}
 
 	if (Object.keys(config).length !== 0) {
-		const ajv = new Ajv();
+		// nullable is needed to allow a schema value to be null
+		// headers value can be null, in order to remove any previous defined header with the same key.
+		const ajv = new Ajv({nullable: true});
 		const validateSchema = ajv.compile(schema);
 
 		if (!validateSchema(config)) {

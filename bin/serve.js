@@ -70,32 +70,34 @@ const getHelp = () => chalk`
 
   {bold OPTIONS}
 
-      --help                              Shows this help message
+	--help                              Shows this help message
 
-      -v, --version                       Displays the current version of serve
+	-v, --version                       Displays the current version of serve
 
-      -l, --listen {underline listen_uri}             Specify a URI endpoint on which to listen (see below) -
-                                          more than one may be specified to listen in multiple places
+	-l, --listen {underline listen_uri}             Specify a URI endpoint on which to listen (see below) -
+																			more than one may be specified to listen in multiple places
 
-      -d, --debug                         Show debugging information
+	-d, --debug                         Show debugging information
 
-      -s, --single                        Rewrite all not-found requests to \`index.html\`
+	-s, --single                        Rewrite all not-found requests to \`index.html\`
 
-      -c, --config                        Specify custom path to \`serve.json\`
+	-c, --config                        Specify custom path to \`serve.json\`
 
-      -C, --cors						  Enable CORS, sets \`Access-Control-Allow-Origin\` to \`*\`
+	-C, --cors						  Enable CORS, sets \`Access-Control-Allow-Origin\` to \`*\`
 
-      -n, --no-clipboard                  Do not copy the local address to the clipboard
+	-n, --no-clipboard                  Do not copy the local address to the clipboard
 
-      -u, --no-compression                Do not compress files
+	-u, --no-compression                Do not compress files
 
-      --no-etag                           Send \`Last-Modified\` header instead of \`ETag\`
+	--no-etag                           Send \`Last-Modified\` header instead of \`ETag\`
 
-      -S, --symlinks                      Resolve symlinks instead of showing 404 errors
+	-S, --symlinks                      Resolve symlinks instead of showing 404 errors
 
-      --ssl-cert                          Optional path to an SSL/TLS certificate to serve with HTTPS
+	--ssl-cert                          Optional path to an SSL/TLS certificate to serve with HTTPS
 
-      --ssl-key                           Optional path to the SSL/TLS certificate\'s private key
+	--ssl-key                           Optional path to the SSL/TLS certificate\'s private key
+		
+	--log                               Output a log of requests
 
   {bold ENDPOINTS}
 
@@ -191,6 +193,10 @@ const startEndpoint = (endpoint, config, args, previous) => {
 		}
 		if (compress) {
 			await compressionHandler(request, response);
+		}
+
+		if (args['--log']) {
+			console.log(`${chalk.cyan((new Date()).toString())} Sending ${chalk.yellow(request.url)} to ${chalk.green(request.connection.remoteAddress)}`);
 		}
 
 		return handler(request, response, config);
@@ -384,6 +390,7 @@ const loadConfig = async (cwd, entry, args) => {
 			'-u': '--no-compression',
 			'-S': '--symlinks',
 			'-C': '--cors',
+			'--log': Boolean,
 			// This is deprecated and only for backwards-compatibility.
 			'-p': '--listen'
 		});

@@ -298,7 +298,7 @@ const loadConfig = async (cwd, entry, args) => {
 		try {
 			content = await readFile(location, 'utf8');
 		} catch (err) {
-			if (err.code === 'ENOENT') {
+			if (err.code === 'ENOENT' && file !== args['--config']) {
 				continue;
 			}
 
